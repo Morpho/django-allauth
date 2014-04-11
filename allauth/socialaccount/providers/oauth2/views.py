@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.core.urlresolvers import reverse
 from django.http import HttpResponseRedirect
 from django.utils import timezone
+from django.core.exceptions import PermissionDenied
 
 from allauth.utils import build_absolute_uri
 from allauth.socialaccount.helpers import render_authentication_error
@@ -98,13 +99,16 @@ class OAuth2CallbackView(OAuth2View):
                                                 response=access_token)
             token.account = login.account
             login.token = token
-            if self.adapter.supports_state:
-                login.state = SocialLogin \
-                    .verify_and_unstash_state(
-                        request,
-                        request.REQUEST.get('state'))
-            else:
-                login.state = SocialLogin.unstash_state(request)
+            try:
+                if self.adapter.supports_state:
+                    login.state = SocialLogin \
+                        .verify_and_unstash_state(
+                            request,
+                            request.REQUEST.get('state'))
+                else:
+                    login.state = SocialLogin.unstash_state(request)
+            except PermissionDenied:
+                return render_authentication_error(request)
             return complete_social_login(request, login)
         except OAuth2Error:
             return render_authentication_error(request)
